@@ -64,31 +64,33 @@ public class SystemSetting extends ReactContextBaseJavaModule implements Activit
     }
 
     private void listenVolume(final ReactApplicationContext reactContext) {
-        volumeBR = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (intent.getAction().equals("android.media.VOLUME_CHANGED_ACTION")) {
-                    WritableMap para = Arguments.createMap();
-                    para.putDouble("value", getNormalizationVolume(VOL_MUSIC));
-                    para.putDouble(VOL_VOICE_CALL, getNormalizationVolume(VOL_VOICE_CALL));
-                    para.putDouble(VOL_SYSTEM, getNormalizationVolume(VOL_SYSTEM));
-                    para.putDouble(VOL_RING, getNormalizationVolume(VOL_RING));
-                    para.putDouble(VOL_MUSIC, getNormalizationVolume(VOL_MUSIC));
-                    para.putDouble(VOL_ALARM, getNormalizationVolume(VOL_ALARM));
-                    para.putDouble(VOL_NOTIFICATION, getNormalizationVolume(VOL_NOTIFICATION));
-                    try {
-                        reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                            .emit("EventVolume", para);
-                    } catch (RuntimeException e) {
-                        // Possible to interact with volume before JS bundle execution is finished. 
-                        // This is here to avoid app crashing.
+        if (volumeBR == null) {
+            volumeBR = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if (intent.getAction().equals("android.media.VOLUME_CHANGED_ACTION")) {
+                        WritableMap para = Arguments.createMap();
+                        para.putDouble("value", getNormalizationVolume(VOL_MUSIC));
+                        para.putDouble(VOL_VOICE_CALL, getNormalizationVolume(VOL_VOICE_CALL));
+                        para.putDouble(VOL_SYSTEM, getNormalizationVolume(VOL_SYSTEM));
+                        para.putDouble(VOL_RING, getNormalizationVolume(VOL_RING));
+                        para.putDouble(VOL_MUSIC, getNormalizationVolume(VOL_MUSIC));
+                        para.putDouble(VOL_ALARM, getNormalizationVolume(VOL_ALARM));
+                        para.putDouble(VOL_NOTIFICATION, getNormalizationVolume(VOL_NOTIFICATION));
+                        try {
+                            reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                                .emit("EventVolume", para);
+                        } catch (RuntimeException e) {
+                            // Possible to interact with volume before JS bundle execution is finished. 
+                            // This is here to avoid app crashing.
+                        }
                     }
                 }
-            }
-        };
-        filter = new IntentFilter("android.media.VOLUME_CHANGED_ACTION");
+            };
+            filter = new IntentFilter("android.media.VOLUME_CHANGED_ACTION");
 
-        reactContext.registerReceiver(volumeBR, filter);
+            reactContext.registerReceiver(volumeBR, filter);
+        }
     }
 
     private void listenWifiState() {
@@ -271,7 +273,11 @@ public class SystemSetting extends ReactContextBaseJavaModule implements Activit
 
     @ReactMethod
     public void setVolume(float val, ReadableMap config) {
-        mContext.unregisterReceiver(volumeBR);
+        if (volumeBR != null) {
+          mContext.unregisterReceiver(volumeBR);
+          volumeBR = null;
+          listenVolume(mContext);
+        }
         String type = config.getString("type");
         boolean playSound = config.getBoolean("playSound");
         boolean showUI = config.getBoolean("showUI");
@@ -499,7 +505,10 @@ public class SystemSetting extends ReactContextBaseJavaModule implements Activit
 
     @Override
     public void onHostDestroy() {
-        mContext.unregisterReceiver(volumeBR);
+        if (volumeBR != null) {
+          mContext.unregisterReceiver(volumeBR);
+          volumeBR = null;
+        }
         if (wifiBR != null) {
             mContext.unregisterReceiver(wifiBR);
             wifiBR = null;
